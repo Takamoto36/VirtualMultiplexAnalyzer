@@ -1,0 +1,37 @@
+# Virtual Multiplex Pathology Analyzer 依存パッケージ
+# ---------------------------------------------------------------------------
+# GUI
+PySide6>=6.6
+
+# 数値・画像処理（コアパイプライン）
+numpy>=1.24
+scipy>=1.10
+scikit-image>=0.22
+opencv-python>=4.8
+pandas>=2.0
+matplotlib>=3.7
+imageio>=2.31
+
+# レジストレーション
+SimpleITK>=2.3
+
+# WSI 入出力
+openslide-python>=1.3   # 別途 OpenSlide ネイティブライブラリが必要（README 参照）
+tifffile>=2023.7        # OpenSlide 不在時の .tif フォールバック
+Pillow>=10.0
+
+# 可視化（任意 / napari は重いので任意インストール）
+# napari>=0.4.18
+
+# 出力
+openpyxl>=3.1
+python-pptx>=0.6.21
+
+# DeepLIIF（任意 / 未インストール時は mock 動作）
+# deepliif>=1.1
+
+# 開発・テスト
+pytest>=7.4
+
+# DeepLIIF Cloud API 呼び出しに必要
+requests>=2.31

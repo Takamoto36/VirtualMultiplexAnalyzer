@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Build
+build/
+dist/
+*.spec.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Local settings & logs
+settings.json
+*.log
+logs/
+
+# Never commit patient data
+*.ndpi
+*.svs
+*.vsi
+*.mrxs
+*.scn
+*.svslide
+
+# Analysis outputs (user-generated)
+outputs/
+results/
+
+# Secrets / local environment
+.env
+.env.*
+!.env.example
