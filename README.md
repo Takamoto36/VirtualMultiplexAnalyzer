@@ -35,9 +35,7 @@ required (the DeepLIIF cloud API handles inference).
 - **Non-commercial use only.** This project depends on DeepLIIF, which
   is distributed under Apache 2.0 with the Commons Clause condition.
   This project therefore uses the same license (see `LICENSE`).
-- **This project is a personal hobby project** by the author. It is
-  **not affiliated with, endorsed by, or a work product of** the author's
-  employer. Bug reports and issues are handled on a best-effort basis.
+- This project is an independent personal software project developed by the author. It is not an official product of the author's employer. Bug reports and issues are handled on a best-effort basis.
 - **Do not upload PHI/PII** (patient-identifying whole-slide images) to
   the DeepLIIF public endpoint. Use anonymized or public sample data.
 
