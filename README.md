@@ -1,7 +1,7 @@
 # Virtual Multiplex Pathology Analyzer
 
-A desktop GUI app for **serial-section whole-slide image (WSI)** analysis
-in pathology. Given two consecutive sections stained for different
+A prototype desktop GUI application for **serial-section whole-slide image (WSI)** analysis
+in pathology, including virtual multiplex fluorescence-like visualization from immunohistochemistry images. Given two consecutive sections stained for different
 markers (e.g. Ki67.ndpi and p53.ndpi), it performs:
 
 1. **Cell detection & positivity** — via the [DeepLIIF](https://deepliif.org)
