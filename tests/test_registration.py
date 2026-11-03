@@ -92,3 +92,53 @@ def test_apply_transform_preserves_label_dtype() -> None:
     assert np.issubdtype(warped.dtype, np.integer)
     # warp 後のラベル集合は元のラベル集合の部分集合（線形補間による中間値が出ない）
     assert set(np.unique(warped)).issubset(set(np.unique(seg_b)))
+
+
+
+def _demo_hematoxylin(name: str) -> np.ndarray:
+    """docs/demo_source の合成画像から一部を切り出し、ヘマトキシリン成分を返す。"""
+    from pathlib import Path
+
+    from PIL import Image
+    from skimage.color import rgb2hed
+
+    path = Path(__file__).resolve().parents[1] / "docs" / "demo_source" / name
+    if not path.exists():
+        pytest.skip(f"{path} がありません")
+    rgb = np.asarray(Image.open(path).convert("RGB"))[145:545, 777:1177] / 255.0
+    h = rgb2hed(rgb)[..., 0]
+    return ((h - h.min()) / (h.max() - h.min()) * 255).astype(np.float32)
+
+
+def test_bspline_stage_is_bounded_and_improves_alignment() -> None:
+    """B-spline 段が「動かない」「発散する」のどちらにもならないこと.
+
+    以前の LBFGS2 は画像によって反復 0 回で止まり変形ゼロになり、上限なしの
+    勾配降下は画素間隔によって発散した。デモ用の合成 Ki67/p53 ペアで、
+    (1) 変形が非ゼロかつ有界、(2) rigid+affine より組織の一致度が上がる、
+    ことを確認する。
+    """
+    import SimpleITK as sitk
+
+    f = _demo_hematoxylin("Ki67_demo.png")
+    m = _demo_hematoxylin("p53_demo.png")
+    reg = Registrar(method="rigid+affine+bspline")
+    fe, me = reg._to_sitk(f), reg._to_sitk(m)
+    lin = reg._affine(fe, me, reg._rigid(fe, me, sitk.Transform(2, sitk.sitkIdentity)))
+    full = reg._bspline(fe, me, lin)
+    assert full is not lin, "B-spline が破棄された（過大変形）"
+
+    disp = reg._max_bspline_displacement(
+        sitk.CompositeTransform(full).GetNthTransform(
+            sitk.CompositeTransform(full).GetNumberOfTransforms() - 1
+        ),
+        fe,
+    )
+    assert 0.5 < disp < 0.05 * min(f.shape), f"最大変位 {disp:.2f}px が範囲外"
+
+    def ncc(tr) -> float:
+        w = sitk.GetArrayFromImage(sitk.Resample(me, fe, tr, sitk.sitkLinear, 0.0))
+        a, b = f - f.mean(), w - w.mean()
+        return float((a * b).sum() / np.sqrt((a * a).sum() * (b * b).sum()))
+
+    assert ncc(full) > ncc(lin)

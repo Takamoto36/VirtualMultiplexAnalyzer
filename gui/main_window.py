@@ -525,8 +525,18 @@ class MainWindow(QMainWindow):
                 density_heatmap(
                     np.array([c.centroid_px for c in result.cells_a]) if result.cells_a else np.empty((0, 2)),
                     result.merged_rgb.shape[:2],
+                    title=f"Nucleus density (all detected nuclei) - {self.settings.marker_a} section",
                 ),
-                cell_overlay(result.merged_rgb, result.cells_a, show_ids=False),
+                # どちらの切片の検出結果かを図内に明記し、両切片とも出力する
+                cell_overlay(
+                    result.merged_rgb, result.cells_a, show_ids=False,
+                    marker=self.settings.marker_a,
+                ),
+                cell_overlay(
+                    result.merged_rgb, result.cells_b, show_ids=False,
+                    marker=self.settings.marker_b,
+                    section_note=f"registered to {self.settings.marker_a}",
+                ),
             ]
             # Cell Matching 妥当性の図（観測 vs ランダム対照 + 閾値感度）
             if diag is not None and getattr(diag, "observed", None) is not None:

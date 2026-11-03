@@ -188,15 +188,63 @@ class Registrar:
         return sitk.CompositeTransform([init, out])
 
     def _bspline(self, fixed, moving, init) -> "sitk.Transform":
-        """B-Spline による非剛体位置合わせ。"""
+        """B-Spline による非剛体位置合わせ。
+
+        最適化は「1 反復あたりの移動量を物理単位で上限づけた勾配降下」で行う。
+
+        経緯:
+            * 以前の LBFGS2 は、Mattes MI（ランダム抽出）と組み合わせると画像に
+              よっては初回の直線探索で "insufficient reduction" となり反復 0 回で
+              終了し、B-spline 変形が常にゼロ（＝実質 rigid+affine）になっていた。
+            * 上限なしの勾配降下＋直線探索では、画素間隔によって発散した。
+            そこで 1 歩を 1 画素（物理単位）以内に制限し、さらに異常に大きな
+            変形が出た場合は B-spline を破棄して init（rigid+affine）に戻す。
+        """
         moving_pre = self._resample(moving, fixed, init)
         mesh = [8, 8]
         bspline = sitk.BSplineTransformInitializer(fixed, mesh)
         R = self._base_method()
         R.SetInitialTransformAsBSpline(bspline, inPlace=True, scaleFactors=[1, 2, 4])
-        R.SetOptimizerAsLBFGS2(numberOfIterations=100)
+        step = float(max(fixed.GetSpacing()))  # 1 画素ぶんの物理長
+        R.SetOptimizerAsGradientDescent(
+            learningRate=1.0, numberOfIterations=100,
+            convergenceMinimumValue=1e-6, convergenceWindowSize=10,
+            estimateLearningRate=R.EachIteration,
+            maximumStepSizeInPhysicalUnits=step,
+        )
+        R.SetOptimizerScalesFromPhysicalShift()
         out = R.Execute(fixed, moving_pre)
+
+        # 安全装置: 最大変位が画像の一辺の 5% を超えたら非剛体を採用しない
+        size_phys = min(
+            n * sp for n, sp in zip(fixed.GetSize(), fixed.GetSpacing())
+        )
+        max_disp = self._max_bspline_displacement(out, fixed)
+        if not np.isfinite(max_disp) or max_disp > 0.05 * size_phys:
+            logger.warning(
+                "B-spline の変形が過大（最大 %.1f / 許容 %.1f）のため破棄し、"
+                "rigid+affine の結果を使用します", max_disp, 0.05 * size_phys,
+            )
+            return init
+        logger.info("B-spline 最大変位 %.2f（物理単位）", max_disp)
         return sitk.CompositeTransform([init, out])
+
+    @staticmethod
+    def _max_bspline_displacement(tr, reference) -> float:
+        """B-spline 変換の最大変位（物理単位）を粗いグリッド上で見積もる。"""
+        try:
+            size = reference.GetSize()
+            ys = np.linspace(0, size[1] - 1, 32)
+            xs = np.linspace(0, size[0] - 1, 32)
+            mx = 0.0
+            for y in ys:
+                for x in xs:
+                    p = reference.TransformContinuousIndexToPhysicalPoint((float(x), float(y)))
+                    q = tr.TransformPoint(p)
+                    mx = max(mx, float(np.hypot(q[0] - p[0], q[1] - p[1])))
+            return mx
+        except Exception:  # noqa: BLE001  # pragma: no cover
+            return float("inf")
 
     # ------------------------------------------------------------------
     # ユーティリティ

@@ -85,26 +85,73 @@ def cell_overlay(
     background_rgb: np.ndarray,
     cells,
     show_ids: bool = True,
-    positive_color: str = "#ff3b30",
-    negative_color: str = "#34c759",
-    title: str = "Cell Overlay",
+    positive_color: str = "#ffffff",
+    negative_color: str = "#8e8e93",
+    title: Optional[str] = None,
+    marker: Optional[str] = None,
+    section_note: str = "",
+    legend: bool = True,
 ):
     """背景画像に細胞重心と（任意で）ID を重畳表示する.
+
+    背景は通常 Pseudo Fluorescence の Merge 画像であり、そのチャネル色
+    （既定では赤・緑・青）と点の色が紛れないよう、陽性=白塗り・陰性=灰色の
+    輪郭という無彩色で描く。どの切片の検出結果かをタイトルと凡例に明記する。
 
     Args:
         background_rgb: 背景 RGB 画像。
         cells: :class:`~modules.datatypes.Cell` のリスト。
         show_ids: セル ID を描画するか（クリック対応表示の下地）。
+        positive_color: 陽性細胞の点の色。
+        negative_color: 陰性細胞の点の色。
+        title: 図タイトル。``None`` なら ``marker`` から自動生成する。
+        marker: この細胞群を検出した切片のマーカー名（例: "Ki67"）。
+        section_note: タイトルに添える補足（例: "registered to Ki67"）。
+        legend: 凡例を描くか。
     """
+    from matplotlib.lines import Line2D
+
     fig, ax = _new_axes()
     ax.imshow(background_rgb)
+    n_pos = n_neg = 0
     for cell in cells:
         x, y = cell.centroid_px
-        color = positive_color if cell.positive else negative_color
-        ax.plot(x, y, "o", markersize=3, markerfacecolor=color, markeredgecolor="white", markeredgewidth=0.3)
+        if cell.positive:
+            n_pos += 1
+            ax.plot(x, y, "o", markersize=3.2, markerfacecolor=positive_color,
+                    markeredgecolor="black", markeredgewidth=0.4)
+        else:
+            n_neg += 1
+            ax.plot(x, y, "o", markersize=3.0, markerfacecolor="none",
+                    markeredgecolor=negative_color, markeredgewidth=0.6)
         if show_ids:
             ax.text(x + 2, y - 2, cell.id[:4], color="white", fontsize=5)
+
+    if title is None:
+        if marker:
+            title = f"Cell detection - {marker} section"
+            if section_note:
+                title += f" ({section_note})"
+        else:
+            title = "Cell Overlay"
     ax.set_title(title, color="white", fontsize=10, loc="left", pad=6)
+    # _new_axes は上余白 0 のため、そのままではタイトルが図外に切れる
+    fig.subplots_adjust(top=0.955)
+
+    if legend:
+        label = marker or "marker"
+        handles = [
+            Line2D([], [], linestyle="none", marker="o", markersize=6,
+                   markerfacecolor=positive_color, markeredgecolor="black",
+                   label=f"{label}-positive (n={n_pos})"),
+            Line2D([], [], linestyle="none", marker="o", markersize=6,
+                   markerfacecolor="none", markeredgecolor=negative_color,
+                   label=f"{label}-negative (n={n_neg})"),
+        ]
+        leg = ax.legend(handles=handles, loc="lower right", fontsize=7,
+                        facecolor="black", edgecolor="#666666", framealpha=0.75)
+        for text in leg.get_texts():
+            text.set_color("white")
     return fig
 
 

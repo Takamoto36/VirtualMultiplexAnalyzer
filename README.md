@@ -73,6 +73,46 @@ surfaced in the output rather than hidden:
 - **Region-level co-localization** (tile-based density correlation) is
   the recommended primary readout for serial-section IHC pairs.
 
+## Related work
+
+Registering serial sections and combining them into a virtual multiplex
+image is an established technique, and this project does not claim
+methodological novelty. If your main need is accurate registration of
+many slides, the tools below are more mature and are recommended:
+
+- **VALIS** — Python tool that registers brightfield and/or
+  immunofluorescence whole-slide images, including multi-gigapixel
+  slides, and writes the aligned, multiplexed result as OME-TIFF.
+  Gatenbee CD *et al.* Virtual alignment of pathology image series for
+  multi-gigapixel whole slide images. *Nat Commun* 14, 2023.
+  [doi:10.1038/s41467-023-40218-9](https://doi.org/10.1038/s41467-023-40218-9) ·
+  <https://github.com/MathOnco/valis>
+- **Warpy** — links QuPath, Fiji and elastix so that whole-slide images
+  can be aligned (with manual correction via BigWarp) and regions of
+  interest transferred between slides in QuPath.
+  Chiaruttini N *et al.* An open-source whole slide image registration
+  workflow at cellular precision using Fiji, QuPath and Elastix.
+  *Front Comput Sci* 3:780026, 2022.
+  [doi:10.3389/fcomp.2021.780026](https://doi.org/10.3389/fcomp.2021.780026)
+- **Hyper-Stain Inspector** — two-stage registration of serial
+  histology whole-slide images followed by localised co-expression
+  analysis across differently stained sections, the closest in aim to
+  this project.
+  Trahearn N *et al.* *Sci Rep* 7:5641, 2017.
+  [doi:10.1038/s41598-017-05511-w](https://doi.org/10.1038/s41598-017-05511-w)
+
+What this project adds is narrower: a no-code GUI that runs without a
+local GPU (via the DeepLIIF cloud API), and an output that always reports
+whether cell-level matching is distinguishable from chance alongside the
+region-level readout.
+
+Like any serial-section approach, it cannot establish co-localization
+**within a nucleus** — for example, the relationship between nuclear
+foci of two proteins. Adjacent sections a few micrometers apart show
+different parts of a nucleus, or different nuclei altogether.
+Sub-nuclear co-localization requires multiplex staining of the same
+section.
+
 ## Screenshots
 
 The following walkthrough uses an AI-generated synthetic Ki67 / p53 pair
@@ -87,8 +127,8 @@ registration `rigid+affine+bspline`, matching distance 10.00 µm.
 ![Main window](docs/images/01_main_window.png)
 
 Four-pane layout: WSI list (left), viewer (center), analysis settings
-(right), log (bottom). Dimensions and mpp of each loaded slide are shown
-in the list.
+(right), and a log pane at the bottom (cropped out of these screenshots).
+Dimensions and mpp of each loaded slide are shown in the list.
 
 *Input is an AI-generated synthetic image, not patient data.*
 
@@ -117,13 +157,27 @@ DeepLIIF Virtual IF.
 
 *Input is an AI-generated synthetic image, not patient data.*
 
-### 4. Cell detection overlay
+### 4. Cell detection overlays (one per section)
 
-![Cell detection overlay](docs/images/04_cell_overlay.png)
+| Ki67 section (fixed image) | p53 section (registered to Ki67) |
+|---|---|
+| ![Cell detection, Ki67 section](docs/images/04a_cell_overlay_ki67.png) | ![Cell detection, p53 section](docs/images/04b_cell_overlay_p53.png) |
 
-Individual nuclei obtained by watershed splitting of the DeepLIIF
-`SegRefined` mask, colored by positivity (red = positive,
-green = negative). A density heatmap is produced alongside it.
+Nuclei obtained by watershed splitting of the DeepLIIF `SegRefined` mask,
+drawn separately for each section. Each figure states which section it
+shows, and its legend gives the positive / negative counts for that
+marker: **filled white = positive, gray ring = negative**.
+
+The dots are deliberately colorless. The background is the
+pseudo-fluorescence merge, whose channels are colored (Ki67 red, p53
+green, nuclei blue), so colored dots would be easy to misread as channel
+signal. The Ki67 section is the fixed image in registration, so its
+coordinates are the original ones; the p53 cells are shown after warping
+into the Ki67 frame.
+
+The report also includes a nucleus-density heatmap for the Ki67 section.
+It counts **all detected nuclei**, positive and negative alike — it is
+not a positive-cell density map.
 
 *Input is an AI-generated synthetic image, not patient data.*
 
@@ -133,21 +187,30 @@ green = negative). A density heatmap is produced alongside it.
 
 | Metric | Value |
 |---|---|
-| Matched cells | 1384 (match rate 57.7%) |
-| Median nearest-neighbor distance, observed | 4.27 µm |
-| Median nearest-neighbor distance, random null | 5.68 µm |
-| Separation | 0.248 |
+| Matched cell pairs | 1298 (match rate 57.9%) |
+| Median nearest-neighbor distance, observed | 4.65 µm |
+| Median nearest-neighbor distance, random null | 5.34 µm |
+| Separation | 0.129 |
+| Verdict | **Not distinguishable from chance** |
 
-The threshold-sensitivity panel on the right is the informative one.
-**The co-positive rate stays essentially flat (≈0.09) across matching
-thresholds from 1 to 15 µm.** If co-positivity reflected genuine
-same-cell co-expression, tightening the threshold should raise it. The
-flatness instead indicates that what is being measured is **region-level
-co-localization**, consistent with the limitation described above.
+For this field the app concludes that cell-level matching is **not
+distinguishable from chance**, and therefore that the co-positive rate is
+not evidence of same-cell co-expression. That is the correct answer: the
+two synthetic images were generated independently and have no cell-level
+correspondence by construction.
 
-This field is also a concrete illustration of why separation alone is
-not sufficient: separation is clearly positive (0.248) even though the
-two synthetic sections have no cell-level correspondence by construction.
+The threshold-sensitivity panel on the right supports the same reading.
+If co-positivity reflected genuine same-cell co-expression, tightening
+the matching threshold should *raise* the co-positive rate. Instead it
+stays **flat at about 0.06–0.08 across thresholds from 1 to 15 µm**
+(slightly lower at the tightest thresholds; the 1 µm point rests on only
+70 pairs, so treat it as noisy).
+
+Note also that separation is still positive (0.129) even though there is
+no correspondence. This is the density-gradient effect described under
+"Honest limitations": the observed distribution is shifted toward shorter
+distances simply because both sections have a dense epithelium and a
+sparser stroma.
 
 *Input is an AI-generated synthetic image, not patient data.*
 
@@ -158,19 +221,21 @@ two synthetic sections have no cell-level correspondence by construction.
 Positive-cell density is computed per 100 µm tile and correlated between
 the two markers. This is the recommended primary readout.
 
-| Metric | Value (n = 36 tiles) |
+| Metric | Value |
 |---|---|
-| Pearson r | 0.937 |
-| Spearman ρ | 0.585 |
-| Ki67+ index | 0.132 |
-| p53+ index | 0.149 |
-| Co-positive overlap | 0.475 |
+| Pearson r (n = 36 tiles) | 0.807 |
+| Spearman ρ (n = 36 tiles) | 0.729 |
+| Ki67+ index (matched cells) | 0.164 |
+| p53+ index (matched cells) | 0.183 |
+| Co-positive overlap (Jaccard) | 0.297 |
 
-Both coefficients are reported deliberately. In this ROI a handful of
-high-density tiles from the basal layer sit far from a cluster of
-low-density tiles near the origin, so Pearson is strongly influenced by
-those few points. **The more conservative Spearman ρ = 0.585 should be
-read as the effective lower bound.**
+Both heatmaps place the positive cells in the same horizontal band — the
+basal layer — and the scatter plot reflects that shared layout.
+
+Both coefficients are reported deliberately. Most tiles fall in a cluster
+of low densities near the origin, and a handful of basal-layer tiles sit
+further out, so Pearson is sensitive to those few points. **Read the
+rank-based Spearman ρ = 0.729 as the more conservative figure.**
 
 *Input is an AI-generated synthetic image, not patient data. These
 numbers are for demonstration and do not represent diagnostic

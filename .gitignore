@@ -42,3 +42,4 @@ results/
 .env.*
 !.env.example
 demo_data/
+
